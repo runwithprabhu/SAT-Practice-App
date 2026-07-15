@@ -1,21 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import "./Timer.css";
 
 function Timer({ minutes, onTimeUp, isRunning }) {
   const [timeLeft, setTimeLeft] = useState(minutes * 60);
+  const onTimeUpRef = useRef(onTimeUp);
+  onTimeUpRef.current = onTimeUp;
 
   useEffect(() => {
     setTimeLeft(minutes * 60);
   }, [minutes]);
 
+  // Runs one interval for the whole countdown instead of recreating it every tick.
   useEffect(() => {
-    if (!isRunning || timeLeft <= 0) return;
+    if (!isRunning) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onTimeUp();
+          onTimeUpRef.current();
           return 0;
         }
         return prev - 1;
@@ -23,7 +26,7 @@ function Timer({ minutes, onTimeUp, isRunning }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, onTimeUp, timeLeft]);
+  }, [isRunning]);
 
   const formatTime = useCallback((seconds) => {
     const mins = Math.floor(seconds / 60);

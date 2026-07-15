@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sections } from "../data/questions";
 import Timer from "../components/Timer";
@@ -49,14 +49,14 @@ function Test() {
     }
   };
 
-  const handleTimeUp = useCallback(() => {
+  const handleTimeUp = () => {
     if (currentSection < sections.length - 1) {
       setCurrentSection((prev) => prev + 1);
       setCurrentQuestion(0);
     } else {
       finishTest();
     }
-  }, [currentSection]);
+  };
 
   const finishTest = () => {
     setTimerRunning(false);

@@ -2,20 +2,54 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "./ChatPanel.css";
 
-// In development, use Vite proxy to avoid CORS. In production (AWS), call directly.
-const API_URL = import.meta.env.DEV
-  ? "/api/chat"
-  : "https://text.pollinations.ai/openai/v1/chat/completions";
+// Always use /api/chat — in dev Vite proxies it, in production the Express server handles it
+const API_URL = "/api/chat";
 
 function ChatPanel({ question, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const panelRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Focus the panel on open, close on Escape, and keep Tab from leaving the dialog.
+  useEffect(() => {
+    const focusable = () =>
+      panelRef.current?.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled), [href]'
+      );
+
+    focusable()?.[0]?.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const elements = focusable();
+      if (!elements || elements.length === 0) return;
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const buildContext = () => {
     let context = "";
@@ -102,7 +136,13 @@ function ChatPanel({ question, onClose }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="chat-panel" role="dialog" aria-label="AI Chat Assistant">
+      <div
+        className="chat-panel"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Chat Assistant"
+      >
         <div className="chat-header">
           <div className="chat-title">
             <span className="chat-icon">🤖</span>

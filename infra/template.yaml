@@ -1,96 +1,70 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: SAT Practice App - S3 Static Hosting with CloudFront
+Description: SAT Practice App - EC2 with Docker
 
 Parameters:
   AppName:
     Type: String
     Default: sat-practice-app
-    Description: Name prefix for resources
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type (t2.micro is free tier eligible)
+  KeyPairName:
+    Type: String
+    Description: Name of an existing EC2 Key Pair for SSH access
 
 Resources:
-  # S3 Bucket for hosting the static React app
-  WebsiteBucket:
-    Type: AWS::S3::Bucket
+  # Security Group
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      BucketName: !Sub '${AppName}-${AWS::AccountId}'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
+      GroupDescription: Allow HTTP and SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
 
-  # Bucket policy to allow CloudFront access
-  WebsiteBucketPolicy:
-    Type: AWS::S3::BucketPolicy
+  # EC2 Instance
+  AppInstance:
+    Type: AWS::EC2::Instance
     Properties:
-      Bucket: !Ref WebsiteBucket
-      PolicyDocument:
-        Statement:
-          - Sid: AllowCloudFrontAccess
-            Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub '${WebsiteBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
-
-  # CloudFront Origin Access Control
-  CloudFrontOAC:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub '${AppName}-oac'
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  # CloudFront Distribution
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        DefaultRootObject: index.html
-        Origins:
-          - Id: S3Origin
-            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
-            OriginAccessControlId: !Ref CloudFrontOAC
-            S3OriginConfig:
-              OriginAccessIdentity: ''
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-          CachedMethods:
-            - GET
-            - HEAD
-          ForwardedValues:
-            QueryString: false
-          Compress: true
-        # Handle SPA routing - return index.html for 404s
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-        PriceClass: PriceClass_100
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023 (us-east-1)
+      SecurityGroups:
+        - !Ref AppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AppName}-server'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y docker git
+          systemctl start docker
+          systemctl enable docker
+          usermod -aG docker ec2-user
 
 Outputs:
-  WebsiteURL:
-    Description: CloudFront URL for the SAT Practice App
-    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
-  BucketName:
-    Description: S3 Bucket name for deployment
-    Value: !Ref WebsiteBucket
-  DistributionId:
-    Description: CloudFront Distribution ID (for cache invalidation)
-    Value: !Ref CloudFrontDistribution
+  PublicIP:
+    Description: Public IP of the EC2 instance
+    Value: !GetAtt AppInstance.PublicIp
+  PublicDNS:
+    Description: Public DNS of the EC2 instance
+    Value: !GetAtt AppInstance.PublicDnsName
+  AppURL:
+    Description: Application URL
+    Value: !Sub 'http://${AppInstance.PublicDnsName}:3000'

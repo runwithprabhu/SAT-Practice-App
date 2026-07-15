@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'https://text.pollinations.ai',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/chat/, '/openai/v1/chat/completions'),
+        headers: {
+          'Origin': 'https://text.pollinations.ai',
+          'Referer': 'https://text.pollinations.ai/',
+        },
       },
     },
   },

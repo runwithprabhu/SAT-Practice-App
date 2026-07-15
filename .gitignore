@@ -38,3 +38,7 @@ cdk.out/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Docker image artifacts
+*.tar
+*.tar.gz
