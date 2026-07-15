@@ -1,24 +1,23 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./Timer.css";
 
 function Timer({ minutes, onTimeUp, isRunning }) {
   const [timeLeft, setTimeLeft] = useState(minutes * 60);
-  const onTimeUpRef = useRef(onTimeUp);
-  onTimeUpRef.current = onTimeUp;
 
+  // Reset timer when section changes
   useEffect(() => {
     setTimeLeft(minutes * 60);
   }, [minutes]);
 
-  // Runs one interval for the whole countdown instead of recreating it every tick.
+  // Countdown logic
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onTimeUpRef.current();
+          onTimeUp();
           return 0;
         }
         return prev - 1;
@@ -26,14 +25,11 @@ function Timer({ minutes, onTimeUp, isRunning }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, timeLeft, onTimeUp]);
 
-  const formatTime = useCallback((seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }, []);
-
+  const mins = Math.floor(timeLeft / 60);
+  const secs = timeLeft % 60;
+  const display = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   const percentage = (timeLeft / (minutes * 60)) * 100;
   const isLow = timeLeft < 120;
 
@@ -42,7 +38,7 @@ function Timer({ minutes, onTimeUp, isRunning }) {
       <div className="timer-icon">⏱️</div>
       <div className="timer-display">
         <span className="timer-label">Time Remaining</span>
-        <span className="timer-value">{formatTime(timeLeft)}</span>
+        <span className="timer-value">{display}</span>
       </div>
       <div className="timer-bar">
         <div
